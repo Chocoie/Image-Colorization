@@ -85,4 +85,10 @@ class ColorNet(nn.Module):
         return X
 
     def model_3(self, X):
-            return NotImplementedError()
+            return self.model_2(X)
+
+if __name__ == "__main__":
+    for m in (1, 2, 3):
+        net = ColorNet(m)
+        out = net(torch.randn(2, 1, 128, 128))
+        print(m, out.shape)   # expect torch.Size([2, 2, 128, 128]) for each

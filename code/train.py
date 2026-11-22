@@ -11,6 +11,18 @@ import matplotlib.pyplot as plt
 import random
 import time
 
+class ChromaLoss(nn.Module):
+    """L1 on ab, plus a penalty when predicted chroma differs from the true chroma."""
+    def __init__(self, weight=0.5):
+        super().__init__()
+        self.l1 = nn.L1Loss()
+        self.weight = weight
+
+    def forward(self, pred, target):
+        pred_c = torch.sqrt((pred ** 2).sum(1) + 1e-8)    # chroma = sqrt(a^2 + b^2)
+        true_c = torch.sqrt((target ** 2).sum(1) + 1e-8)
+        return self.l1(pred, target) + self.weight * (pred_c - true_c).abs().mean()
+
 def train(model, device, train_loader, optimizer, criterion, epoch, batch_size):
     '''
     Trains the model for an epoch and optimizes it.
@@ -162,8 +174,11 @@ def run_main(FLAGS):
     # Initialize the model and send to device 
     model = ColorNet(FLAGS.mode).to(device)
 
-    # loss function
-    criterion = nn.L1Loss()
+    # loss function depends on the mode
+    if FLAGS.mode == 3:
+        criterion = ChromaLoss(FLAGS.chroma_weight)
+    else:
+        criterion = nn.L1Loss()
     
     # optimizer function
     optimizer = optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
@@ -215,6 +230,9 @@ if __name__ == '__main__':
     parser.add_argument('--max_images',
                             type=int, default=None,
                             help='Use only the first N images.')
+    parser.add_argument('--chroma_weight',                
+                        type=float, default=0.5,
+                        help='Weight of the chroma penalty (mode 3 only).')
     
     FLAGS = None
     FLAGS, unparsed = parser.parse_known_args()
