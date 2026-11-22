@@ -1,0 +1,21 @@
+Torch device selected:  cuda
+32850 train images, 3650 test images
+  batch 20/1027 | 6s
+  batch 40/1027 | 12s
+  batch 60/1027 | 18s
+  batch 80/1027 | 24s
+  batch 100/1027 | 32s
+  batch 120/1027 | 38s
+  batch 140/1027 | 45s
+  batch 160/1027 | 51s
+  batch 180/1027 | 58s
+  batch 200/1027 | 64s
+  batch 220/1027 | 71s
+  batch 240/1027 | 77s
+  batch 260/1027 | 84s
+  batch 280/1027 | 91s
+  batch 300/1027 | 97s
+  batch 320/1027 | 104s
+  batch 340/1027 | 110s
+  batch 360/1027 | 116s
+  batch 380/1027 | 122s

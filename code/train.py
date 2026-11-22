@@ -74,6 +74,7 @@ def test(model, device, test_loader, criterion):
     
     losses = []
     ab_mean =[] # absolute mean error
+    gray_mean = [] # absolute mean error of the "predict gray" baseline
     
     # Set torch.no_grad() to disable gradient computation and backpropagation
     with torch.no_grad():
@@ -90,16 +91,17 @@ def test(model, device, test_loader, criterion):
             losses.append(loss.item())
             
             ab_mean.append((pred_ab - ab).abs().mean().item() * 110.0)
+            gray_mean.append(ab.abs().mean().item() * 110.0)
 
     test_loss = float(np.mean(losses))
     test_mean = float(np.mean(ab_mean))
-    print(f" Test loss: {test_loss:.4f} | ab absolute mean error: {test_mean:.2f}")
+    gray_error = float(np.mean(gray_mean))
+    print(f" Test loss: {test_loss:.4f} | absolute mean error: {test_mean:.2f} | gray error: {gray_error:.2f}")
     return test_loss, test_mean
 
 def save_samples(model, device, dataset, path, n=6):
     model.eval()
-    i = random.sample(range(len(dataset)), min(n, len(dataset)))
-
+    i = list(range(min(n, len(dataset))))
     L = torch.stack([dataset[j][0] for j in i]).to(device)
     ab = torch.stack([dataset[j][1] for j in i])
 
@@ -155,7 +157,7 @@ def run_main(FLAGS):
     train_loader = DataLoader(train_set, batch_size=FLAGS.batch_size,
                               shuffle=True, num_workers=0)
     test_loader = DataLoader(test_set, batch_size=FLAGS.batch_size,
-                                  shuffle=True, num_workers=0)
+                                  shuffle=False, num_workers=0)
     
     # Initialize the model and send to device 
     model = ColorNet(FLAGS.mode).to(device)
@@ -167,6 +169,7 @@ def run_main(FLAGS):
     optimizer = optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
 
     best_error = float("inf")
+    tag = "_test" if FLAGS.max_images is not None else ""
     
     # Run training for n_epochs specified in config 
     for epoch in range(1, FLAGS.num_epochs + 1):
@@ -175,11 +178,12 @@ def run_main(FLAGS):
         
         if test_error < best_error:
             best_error = test_error
-            torch.save(model.state_dict(), os.path.join("outputs", f"colornet_mode{FLAGS.mode}.pt"))
+
+            torch.save(model.state_dict(), os.path.join("outputs", f"colornet_mode{FLAGS.mode}{tag}.pt"))
 
         if epoch % 5 == 0 or epoch == FLAGS.num_epochs:
             save_samples(model, device, test_set,
-                         os.path.join("outputs", f"mode{FLAGS.mode}_samples_epoch{epoch}.png"))
+                         os.path.join("outputs", f"mode{FLAGS.mode}{tag}_samples_epoch{epoch}.png"))
     
     
     print("accuracy is {:2.2f}".format(best_error))
