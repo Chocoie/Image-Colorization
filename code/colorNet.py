@@ -35,6 +35,7 @@ class ColorNet(nn.Module):
         else:
             k = 1
 
+        # feature layers with skips
         self.dec1 = convBlock(32 * k, 32)
         self.dec2 = convBlock(32 * 2 * k, 32 * 2)
         self.dec3 = convBlock(32 * 4 * k, 32 * 4)
@@ -42,6 +43,7 @@ class ColorNet(nn.Module):
         self.out = nn.Conv2d(32, 2, 1)
         self.act = nn.Tanh()
 
+        # selecting modes
         if mode == 1:
             self.forward = self.model_1
         elif mode == 2:
@@ -84,10 +86,12 @@ class ColorNet(nn.Module):
 
         return X
 
+    # uses same architecture as mode 2
     def model_3(self, X):
             return self.model_2(X)
 
 if __name__ == "__main__":
+    # shape test 
     for m in (1, 2, 3):
         net = ColorNet(m)
         out = net(torch.randn(2, 1, 128, 128))

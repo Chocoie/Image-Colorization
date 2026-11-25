@@ -11,18 +11,19 @@ import matplotlib.pyplot as plt
 import random
 import time
 
+# determines the loss for mode 3
 class ChromaLoss(nn.Module):
-    """L1 on ab, plus a penalty when predicted chroma differs from the true chroma."""
     def __init__(self, weight=0.5):
         super().__init__()
         self.l1 = nn.L1Loss()
-        self.weight = weight
+        self.weight = weight # how strongly the chroma term counts
 
     def forward(self, pred, target):
         pred_c = torch.sqrt((pred ** 2).sum(1) + 1e-8)    # chroma = sqrt(a^2 + b^2)
         true_c = torch.sqrt((target ** 2).sum(1) + 1e-8)
         return self.l1(pred, target) + self.weight * (pred_c - true_c).abs().mean()
 
+# some code reuse from programming assignment 2
 def train(model, device, train_loader, optimizer, criterion, epoch, batch_size):
     '''
     Trains the model for an epoch and optimizes it.
@@ -44,7 +45,7 @@ def train(model, device, train_loader, optimizer, criterion, epoch, batch_size):
     
     # Iterate over entire training samples (1 epoch)
     for L, ab in train_loader:
-        # Push data/label to correct device
+        # move L and ab to the GPU/CPU
         L = L.to(device)
         ab = ab.to(device)
         
@@ -66,6 +67,7 @@ def train(model, device, train_loader, optimizer, criterion, epoch, batch_size):
         # Optimize model parameters based on learning rate and gradient 
         optimizer.step()
 
+        # progress message
         if len(losses) % 20 == 0:
             print(f"  batch {len(losses)}/{len(train_loader)} | {time.time() - start:.0f}s")
         
@@ -93,7 +95,7 @@ def test(model, device, test_loader, criterion):
         for L, ab in test_loader:
             L, ab = L.to(device), ab.to(device)
             
-            # # prediction for ab
+            # prediction for ab
             pred_ab = model(L)
 
             # calculate loss
@@ -101,19 +103,27 @@ def test(model, device, test_loader, criterion):
             
             # Append loss to overall test loss
             losses.append(loss.item())
-            
-            ab_mean.append((pred_ab - ab).abs().mean().item() * 110.0)
-            gray_mean.append(ab.abs().mean().item() * 110.0)
 
+            ab_mean.append((pred_ab - ab).abs().mean().item() * 110.0) # in Lab units
+            gray_mean.append(ab.abs().mean().item() * 110.0) # absolute val of ab
+
+    # print the test loss, absolute mean error, and gray error
     test_loss = float(np.mean(losses))
     test_mean = float(np.mean(ab_mean))
     gray_error = float(np.mean(gray_mean))
     print(f" Test loss: {test_loss:.4f} | absolute mean error: {test_mean:.2f} | gray error: {gray_error:.2f}")
     return test_loss, test_mean
 
+
 def save_samples(model, device, dataset, path, n=6):
+    '''
+        Saves picture grid containing the grayscale input, the model's
+        prediction, and the ground truth for the first n test images. 
+        The same images are used every time so grids from different
+        modes and epochs can be compared directly.
+    '''
     model.eval()
-    i = list(range(min(n, len(dataset))))
+    i = list(range(min(n, len(dataset)))) # fixed indicies
     L = torch.stack([dataset[j][0] for j in i]).to(device)
     ab = torch.stack([dataset[j][1] for j in i])
 
@@ -121,10 +131,13 @@ def save_samples(model, device, dataset, path, n=6):
         pred = model(L).cpu()
 
     L = L.cpu()
+
+    # convert Lab back to RGB for display
     grayImg = lab_tensors_to_rgb(L, torch.zeros_like(ab))
     predImg = lab_tensors_to_rgb(L, pred)
     realImg = lab_tensors_to_rgb(L, ab)
 
+    # creates the plots
     fix, axes = plt.subplots(3, len(i), figsize=(2.5 * len(i), 7.5))
     axes = np.atleast_2d(axes).reshape(3, -1)
 
@@ -133,14 +146,15 @@ def save_samples(model, device, dataset, path, n=6):
             axes[r, k].imshow(img[k])
             axes[r, k].axis("off")
 
-            if k == 0:
+            if k == 0: # row labels only on the first column
                 axes[r, k].set_title(title, fontsize=9)
+
     plt.tight_layout()
     plt.savefig(path, dpi=120)
     plt.close()
     
 def run_main(FLAGS):
-    st = time.perf_counter()
+    st = time.perf_counter() # start time
     # random seeds
     random.seed(0)
     torch.manual_seed(0)
@@ -152,18 +166,19 @@ def run_main(FLAGS):
     device = torch.device("cuda" if use_cuda else "cpu")
     print("Torch device selected: ", device)
 
-    os.makedirs("outputs", exist_ok=True)
+    os.makedirs("outputs", exist_ok=True) # weights and sample imgs saved here
 
     # get data: image paths, split into training and test samples
     paths = getImages()
-    random.Random(0).shuffle(paths)
+    random.Random(0).shuffle(paths) # same shuffle every run
     if FLAGS.max_images is not None:
         paths = paths[:FLAGS.max_images]
-    n_test = max(1, int(len(paths) * 0.1))
+    n_test = max(1, int(len(paths) * 0.1)) # 10% for testing
     test_paths = paths[:n_test]
     train_paths = paths[n_test:]
     print(f"{len(train_paths)} train images, {len(test_paths)} test images")
 
+    # load the training and test datasets from ColorizeDataset
     train_set = ColorizeDataset(train_paths, 128)
     test_set = ColorizeDataset(test_paths, 128)
     train_loader = DataLoader(train_set, batch_size=FLAGS.batch_size,
@@ -183,26 +198,26 @@ def run_main(FLAGS):
     # optimizer function
     optimizer = optim.Adam(model.parameters(), lr=FLAGS.learning_rate)
 
-    best_error = float("inf")
-    tag = "_test" if FLAGS.max_images is not None else ""
+    best_error = float("inf") # lowest test error
+    tag = "_test" if FLAGS.max_images is not None else "" # tag so files don't get overwritten
     
     # Run training for n_epochs specified in config 
     for epoch in range(1, FLAGS.num_epochs + 1):
         train_loss = train(model, device, train_loader, optimizer, criterion, epoch, FLAGS.batch_size)
         test_loss, test_error = test(model, device, test_loader, criterion)
-        
+
+        # save weights whenver there is a new best
         if test_error < best_error:
             best_error = test_error
-
             torch.save(model.state_dict(), os.path.join("outputs", f"colornet_mode{FLAGS.mode}{tag}.pt"))
 
+        # save sample grid at every 5 epochs and last epoch
         if epoch % 5 == 0 or epoch == FLAGS.num_epochs:
             save_samples(model, device, test_set,
                          os.path.join("outputs", f"mode{FLAGS.mode}{tag}_samples_epoch{epoch}.png"))
     
-    
+    # print results
     print("accuracy is {:2.2f}".format(best_error))
-    
     print("Training and evaluation finished")
 
     et = time.perf_counter()
