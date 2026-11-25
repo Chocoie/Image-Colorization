@@ -72,8 +72,8 @@ For a folder:
 ```
 python color_image.py --mode 1 --input ../input
 python color_image.py --mode 2 --input ../input
-python color_image.py --mode 3 --weights outputs/colornet_mode3_w0.5_last.pt --input ../inputs
-python color_image.py --mode 3 --weights outputs/colornet_mode3_w1.0_last.pt --input ../inputs
+python color_image.py --mode 3 --weights outputs/colornet_mode3_w0.5_last.pt --input ../input
+python color_image.py --mode 3 --weights outputs/colornet_mode3_w1.0_last.pt --input ../input
 ```
 
 For a single image: 
