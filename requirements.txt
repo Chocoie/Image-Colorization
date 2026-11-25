@@ -4,4 +4,3 @@ numpy
 scikit-image
 Pillow
 matplotlib
-pathLib
